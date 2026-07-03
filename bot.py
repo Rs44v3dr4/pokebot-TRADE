@@ -272,28 +272,37 @@ async def pokemon_autocomplete(interaction: discord.Interaction, current: str):
         return []
     current = current.lower().strip()
     if not current:
-        matches = POKEMON_NAMES[:25]
+        base_matches = POKEMON_NAMES[:12]
     else:
         starts = [n for n in POKEMON_NAMES if n.startswith(current)]
         contains = [n for n in POKEMON_NAMES if current in n and n not in starts]
-        matches = (starts + contains)[:25]
-    return [app_commands.Choice(name=n, value=n) for n in matches]
+        base_matches = (starts + contains)[:12]
+
+    choices = []
+    for n in base_matches:
+        choices.append(app_commands.Choice(name=n, value=n))
+        choices.append(app_commands.Choice(name=f"{n} (Shiny)", value=f"{n}:shiny"))
+    return choices[:25]
+
+
+def parse_choice_value(raw: Optional[str]):
+    """Convierte el valor elegido en el autocomplete en (slug, shiny)."""
+    if not raw:
+        return None
+    raw = raw.strip()
+    if raw.endswith(":shiny"):
+        return raw[:-len(":shiny")], True
+    return raw, False
 
 
 @app_commands.command(name="cambio", description="Publica un intercambio (Busco/Ofrezco) con sprites y autocomplete")
 @app_commands.describe(
-    busco1="Pokémon que buscas (obligatorio)",
-    busco1_shiny="¿Shiny?",
-    ofrezco1="Pokémon que ofreces (obligatorio)",
-    ofrezco1_shiny="¿Shiny?",
-    busco2="Pokémon que buscas", busco2_shiny="¿Shiny?",
-    busco3="Pokémon que buscas", busco3_shiny="¿Shiny?",
-    busco4="Pokémon que buscas", busco4_shiny="¿Shiny?",
-    busco5="Pokémon que buscas", busco5_shiny="¿Shiny?",
-    ofrezco2="Pokémon que ofreces", ofrezco2_shiny="¿Shiny?",
-    ofrezco3="Pokémon que ofreces", ofrezco3_shiny="¿Shiny?",
-    ofrezco4="Pokémon que ofreces", ofrezco4_shiny="¿Shiny?",
-    ofrezco5="Pokémon que ofreces", ofrezco5_shiny="¿Shiny?",
+    busco1="Pokémon que buscas (obligatorio) — escribe el nombre y elige normal o (Shiny)",
+    ofrezco1="Pokémon que ofreces (obligatorio) — escribe el nombre y elige normal o (Shiny)",
+    busco2="Pokémon que buscas", busco3="Pokémon que buscas",
+    busco4="Pokémon que buscas", busco5="Pokémon que buscas",
+    ofrezco2="Pokémon que ofreces", ofrezco3="Pokémon que ofreces",
+    ofrezco4="Pokémon que ofreces", ofrezco5="Pokémon que ofreces",
 )
 @app_commands.autocomplete(
     busco1=pokemon_autocomplete, busco2=pokemon_autocomplete, busco3=pokemon_autocomplete,
@@ -305,24 +314,14 @@ async def cambio_slash(
     interaction: discord.Interaction,
     busco1: str,
     ofrezco1: str,
-    busco1_shiny: bool = False,
-    ofrezco1_shiny: bool = False,
     busco2: Optional[str] = None,
-    busco2_shiny: bool = False,
     busco3: Optional[str] = None,
-    busco3_shiny: bool = False,
     busco4: Optional[str] = None,
-    busco4_shiny: bool = False,
     busco5: Optional[str] = None,
-    busco5_shiny: bool = False,
     ofrezco2: Optional[str] = None,
-    ofrezco2_shiny: bool = False,
     ofrezco3: Optional[str] = None,
-    ofrezco3_shiny: bool = False,
     ofrezco4: Optional[str] = None,
-    ofrezco4_shiny: bool = False,
     ofrezco5: Optional[str] = None,
-    ofrezco5_shiny: bool = False,
 ):
     if interaction.channel_id != ALLOWED_CHANNEL_ID:
         await interaction.response.send_message(
@@ -330,16 +329,10 @@ async def cambio_slash(
         )
         return
 
-    busco_raw = [
-        (busco1, busco1_shiny), (busco2, busco2_shiny), (busco3, busco3_shiny),
-        (busco4, busco4_shiny), (busco5, busco5_shiny),
-    ]
-    ofrezco_raw = [
-        (ofrezco1, ofrezco1_shiny), (ofrezco2, ofrezco2_shiny), (ofrezco3, ofrezco3_shiny),
-        (ofrezco4, ofrezco4_shiny), (ofrezco5, ofrezco5_shiny),
-    ]
-    busco = [(normalize_name(n)[0], shiny) for n, shiny in busco_raw if n]
-    ofrezco = [(normalize_name(n)[0], shiny) for n, shiny in ofrezco_raw if n]
+    busco = [parse_choice_value(n) for n in (busco1, busco2, busco3, busco4, busco5)]
+    ofrezco = [parse_choice_value(n) for n in (ofrezco1, ofrezco2, ofrezco3, ofrezco4, ofrezco5)]
+    busco = [x for x in busco if x]
+    ofrezco = [x for x in ofrezco if x]
 
     await interaction.response.defer()
 
