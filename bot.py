@@ -8,7 +8,8 @@ from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 
 TOKEN = os.environ["DISCORD_TOKEN"]
-PREFIX = "!"
+PREFIX = ";"
+COMMAND_NAME = "cambio"
 ALLOWED_CHANNEL_ID = 1440355743999066233
 
 intents = discord.Intents.default()
@@ -43,7 +44,7 @@ def parse_command(text: str):
     !trade b: mew shiny, tsareena | o: garchomp shiny, mimikyu
     !trade busco: mew shiny, tsareena | ofrezco: garchomp shiny, mimikyu
     """
-    text = text[len(PREFIX) + len("trade"):].strip()
+    text = text[len(PREFIX) + len(COMMAND_NAME):].strip()
     if "|" not in text:
         raise ValueError(
             "Formato: `!trade b: poke1, poke2 shiny | o: poke3, poke4` "
@@ -174,9 +175,9 @@ async def on_ready():
 
 
 HELP_TEXT = (
-    "**Cómo usar `!trade`**\n"
+    "**Cómo usar `;cambio`**\n"
     "```\n"
-    "!trade b: poke1, poke2 shiny | o: poke3, poke4\n"
+    ";cambio b: poke1, poke2 shiny | o: poke3, poke4\n"
     "```\n"
     "• `b:` = lo que **buscas** (también sirve `busco:`)\n"
     "• `o:` = lo que **ofreces** (también sirve `of:` u `ofrezco:`)\n"
@@ -185,26 +186,26 @@ HELP_TEXT = (
     "**Formas regionales o especiales** (Galar, Alola, Paldea, etc.) deben "
     "escribirse con guion, tal como en Pokémon HOME/Bulbapedia:\n"
     "```\n"
-    "!trade b: weezing-galar shiny | o: tauros-paldea-combat-breed, ponyta-galar\n"
+    ";cambio b: weezing-galar shiny | o: tauros-paldea-combat-breed, ponyta-galar\n"
     "```\n"
     "Formas como Mimikyu, Aegislash o Zygarde se detectan solas, no hace falta "
     "especificarlas."
 )
 
 
-@bot.command(name="tradehelp")
+@bot.command(name="cambioayuda")
 async def trade_help(ctx: commands.Context):
     if ctx.channel.id != ALLOWED_CHANNEL_ID:
         return
     await ctx.reply(HELP_TEXT)
 
 
-@bot.command(name="trade")
+@bot.command(name=COMMAND_NAME)
 async def trade(ctx: commands.Context):
     if ctx.channel.id != ALLOWED_CHANNEL_ID:
         return  # ignora silenciosamente comandos fuera del canal permitido
 
-    if ctx.message.content.strip().lower() in (f"{PREFIX}trade", f"{PREFIX}trade help"):
+    if ctx.message.content.strip().lower() in (f"{PREFIX}{COMMAND_NAME}", f"{PREFIX}{COMMAND_NAME} ayuda"):
         await ctx.reply(HELP_TEXT)
         return
 
