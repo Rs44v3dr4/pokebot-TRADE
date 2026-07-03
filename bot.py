@@ -4,7 +4,9 @@ import io
 import asyncio
 import aiohttp
 import discord
+from typing import Optional
 from discord.ext import commands
+from discord import app_commands
 from PIL import Image, ImageDraw, ImageFont
 
 TOKEN = os.environ["DISCORD_TOKEN"]
@@ -15,6 +17,8 @@ ALLOWED_CHANNEL_ID = 1440355743999066233
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix=PREFIX, intents=intents)
+
+POKEMON_NAMES = []  # se llena al conectar, usado para el autocomplete de /cambio
 
 POKEAPI_BASE = "https://pokeapi.co/api/v2/pokemon/{name}"
 
@@ -182,6 +186,26 @@ async def build_trade_card(author_name, busco, ofrezco):
 async def on_ready():
     print(f"Conectado como {bot.user}")
 
+    global POKEMON_NAMES
+    if not POKEMON_NAMES:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get("https://pokeapi.co/api/v2/pokemon?limit=20000") as resp:
+                    data = await resp.json()
+                    POKEMON_NAMES = sorted(r["name"] for r in data["results"])
+            print(f"Cargados {len(POKEMON_NAMES)} nombres de Pokémon para autocomplete")
+        except Exception as e:
+            print(f"No se pudo cargar la lista de nombres: {e}")
+
+    try:
+        channel = bot.get_channel(ALLOWED_CHANNEL_ID) or await bot.fetch_channel(ALLOWED_CHANNEL_ID)
+        guild = channel.guild
+        bot.tree.copy_global_to(guild=guild)
+        synced = await bot.tree.sync(guild=guild)
+        print(f"Sincronizados {len(synced)} comandos slash en {guild.name}")
+    except Exception as e:
+        print(f"No se pudieron sincronizar los comandos slash: {e}")
+
 
 HELP_TEXT = (
     "**Cómo usar `;cambio`**\n"
@@ -242,5 +266,96 @@ async def trade(ctx: commands.Context):
     except (discord.Forbidden, discord.NotFound):
         pass  # el bot no tiene permiso, o el mensaje ya no existe
 
+
+async def pokemon_autocomplete(interaction: discord.Interaction, current: str):
+    if not POKEMON_NAMES:
+        return []
+    current = current.lower().strip()
+    if not current:
+        matches = POKEMON_NAMES[:25]
+    else:
+        starts = [n for n in POKEMON_NAMES if n.startswith(current)]
+        contains = [n for n in POKEMON_NAMES if current in n and n not in starts]
+        matches = (starts + contains)[:25]
+    return [app_commands.Choice(name=n, value=n) for n in matches]
+
+
+@app_commands.command(name="cambio", description="Publica un intercambio (Busco/Ofrezco) con sprites y autocomplete")
+@app_commands.describe(
+    busco1="Pokémon que buscas (obligatorio)",
+    busco1_shiny="¿Shiny?",
+    ofrezco1="Pokémon que ofreces (obligatorio)",
+    ofrezco1_shiny="¿Shiny?",
+    busco2="Pokémon que buscas", busco2_shiny="¿Shiny?",
+    busco3="Pokémon que buscas", busco3_shiny="¿Shiny?",
+    busco4="Pokémon que buscas", busco4_shiny="¿Shiny?",
+    busco5="Pokémon que buscas", busco5_shiny="¿Shiny?",
+    ofrezco2="Pokémon que ofreces", ofrezco2_shiny="¿Shiny?",
+    ofrezco3="Pokémon que ofreces", ofrezco3_shiny="¿Shiny?",
+    ofrezco4="Pokémon que ofreces", ofrezco4_shiny="¿Shiny?",
+    ofrezco5="Pokémon que ofreces", ofrezco5_shiny="¿Shiny?",
+)
+@app_commands.autocomplete(
+    busco1=pokemon_autocomplete, busco2=pokemon_autocomplete, busco3=pokemon_autocomplete,
+    busco4=pokemon_autocomplete, busco5=pokemon_autocomplete,
+    ofrezco1=pokemon_autocomplete, ofrezco2=pokemon_autocomplete, ofrezco3=pokemon_autocomplete,
+    ofrezco4=pokemon_autocomplete, ofrezco5=pokemon_autocomplete,
+)
+async def cambio_slash(
+    interaction: discord.Interaction,
+    busco1: str,
+    ofrezco1: str,
+    busco1_shiny: bool = False,
+    ofrezco1_shiny: bool = False,
+    busco2: Optional[str] = None,
+    busco2_shiny: bool = False,
+    busco3: Optional[str] = None,
+    busco3_shiny: bool = False,
+    busco4: Optional[str] = None,
+    busco4_shiny: bool = False,
+    busco5: Optional[str] = None,
+    busco5_shiny: bool = False,
+    ofrezco2: Optional[str] = None,
+    ofrezco2_shiny: bool = False,
+    ofrezco3: Optional[str] = None,
+    ofrezco3_shiny: bool = False,
+    ofrezco4: Optional[str] = None,
+    ofrezco4_shiny: bool = False,
+    ofrezco5: Optional[str] = None,
+    ofrezco5_shiny: bool = False,
+):
+    if interaction.channel_id != ALLOWED_CHANNEL_ID:
+        await interaction.response.send_message(
+            "Este comando solo funciona en el canal de trades.", ephemeral=True
+        )
+        return
+
+    busco_raw = [
+        (busco1, busco1_shiny), (busco2, busco2_shiny), (busco3, busco3_shiny),
+        (busco4, busco4_shiny), (busco5, busco5_shiny),
+    ]
+    ofrezco_raw = [
+        (ofrezco1, ofrezco1_shiny), (ofrezco2, ofrezco2_shiny), (ofrezco3, ofrezco3_shiny),
+        (ofrezco4, ofrezco4_shiny), (ofrezco5, ofrezco5_shiny),
+    ]
+    busco = [(normalize_name(n)[0], shiny) for n, shiny in busco_raw if n]
+    ofrezco = [(normalize_name(n)[0], shiny) for n, shiny in ofrezco_raw if n]
+
+    await interaction.response.defer()
+
+    try:
+        image_buf = await build_trade_card(interaction.user.display_name, busco, ofrezco)
+    except Exception as e:
+        await interaction.followup.send(f"No pude generar la imagen: {e}")
+        return
+
+    file = discord.File(image_buf, filename="trade.png")
+    await interaction.followup.send(
+        content=f"**{interaction.user.mention}** publicó un intercambio:",
+        file=file,
+    )
+
+
+bot.tree.add_command(cambio_slash)
 
 bot.run(TOKEN)
