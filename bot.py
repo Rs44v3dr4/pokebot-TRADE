@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 TOKEN = os.environ["DISCORD_TOKEN"]
 PREFIX = "!"
+ALLOWED_CHANNEL_ID = 1440355743999066233
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -144,6 +145,9 @@ async def on_ready():
 
 @bot.command(name="trade")
 async def trade(ctx: commands.Context):
+    if ctx.channel.id != ALLOWED_CHANNEL_ID:
+        return  # ignora silenciosamente comandos fuera del canal permitido
+
     try:
         busco, ofrezco = parse_command(ctx.message.content)
     except ValueError as e:
