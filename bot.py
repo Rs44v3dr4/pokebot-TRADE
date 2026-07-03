@@ -23,7 +23,7 @@ BG_COLOR = (32, 34, 37)
 BUSCO_COLOR = (130, 230, 150)
 OFREZCO_COLOR = (240, 190, 90)
 ICON_SIZE = 96
-ICON_GAP = 16
+ICON_GAP = 40
 COLS = 6
 
 
@@ -113,6 +113,14 @@ async def fetch_sprite(session: aiohttp.ClientSession, slug: str, shiny: bool):
     return img, data.get("name", slug)
 
 
+def fit_text(draw, text, font, max_width):
+    if draw.textlength(text, font=font) <= max_width:
+        return text
+    while text and draw.textlength(text + "…", font=font) > max_width:
+        text = text[:-1]
+    return text + "…" if text else "…"
+
+
 def section_height(n_items):
     rows = max(1, (n_items + COLS - 1) // COLS)
     return 60 + rows * (ICON_SIZE + ICON_GAP)
@@ -133,7 +141,8 @@ def draw_section(card, draw, y, label, items, sprites, color, font_label, font_n
             card.paste(box, (x, row_y))
             draw.text((x + 6, row_y + ICON_SIZE // 2 - 8), "?", font=font_name, fill=(255, 255, 255))
         caption = display_name + (" (Shiny)" if shiny else "")
-        draw.text((x, row_y + ICON_SIZE + 2), caption[:14], font=font_name, fill=(220, 220, 220))
+        fitted = fit_text(draw, caption, font_name, ICON_SIZE + ICON_GAP - 6)
+        draw.text((x, row_y + ICON_SIZE + 2), fitted, font=font_name, fill=(220, 220, 220))
         x += ICON_SIZE + ICON_GAP
     return row_y + ICON_SIZE + 30
 
