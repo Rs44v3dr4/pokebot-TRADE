@@ -223,7 +223,15 @@ async def trade(ctx: commands.Context):
             return
 
     file = discord.File(image_buf, filename="trade.png")
-    await ctx.send(file=file)
+    await ctx.send(
+        content=f"**{ctx.author.mention}** publicó un intercambio:",
+        file=file,
+    )
+
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass  # el bot no tiene permiso, o el mensaje ya no existe
 
 
 bot.run(TOKEN)
